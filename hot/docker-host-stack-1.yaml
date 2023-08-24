@@ -4,11 +4,15 @@ parameters:
   flavor:
     type: string
     description: Flavor to use
-    default: 2C-4GB-50GB
+    default: b.2c2gb
   image:
     type: string
     description: Image name
     default: Ubuntu 22.04 Jammy Jellyfish x86_64
+  boot_volume_size:
+    type: number
+    description: Boot volume size
+    default: 16
   key_name:
     type: string
     description: Keypair to inject into server
@@ -28,12 +32,21 @@ resources:
     type: "OS::Nova::Server"
     properties:
       name: dockerhost
-      image: { get_param: image }
       flavor: { get_param: flavor }
       key_name: { get_param: key_name }
-      config_drive: { get_param: config_drive }
       networks:
         - port: { get_resource: dockerhost_management_port }
+      block_device_mapping:
+        - device_name: vda
+          volume_id: { get_resource: mydockerhost_boot_volume }
+          delete_on_termination: false
+      config_drive: { get_param: config_drive }
+
+  mydockerhost_boot_volume:
+    type: "OS::Cinder::Volume"
+    properties:
+      image: { get_param: image }
+      size: { get_param: boot_volume_size }
 
   dockerhost_management_port:
     type: "OS::Neutron::Port"
