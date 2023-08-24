@@ -119,15 +119,11 @@ resources:
     type: "OS::Heat::CloudConfig"
     properties:
       cloud_config:
-        bootcmd:
-          - curl -L https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg.asc
-          - gpg --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg.asc
-          - chmod a+r /etc/apt/keyrings/docker.gpg
-        write_files:
-          - path: /etc/apt/sources.list.d/docker.list
-            permissions: '0644'
-            content: |
-              deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable
+        apt:
+          sources:
+            docker.list:
+              source: deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable
+              keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
         package_update: true
         package_upgrade: true
         packages:
@@ -136,8 +132,11 @@ resources:
           - containerd.io
           - docker-buildx-plugin
           - docker-compose-plugin
-        runcmd:
-          - usermod -aG docker ubuntu
+        groups:
+          - docker
+        system_info:
+          default_user:
+            groups: [docker]
 
 outputs:
   public_ip:
