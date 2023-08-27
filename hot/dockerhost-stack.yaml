@@ -1,4 +1,4 @@
-heat_template_version: wallaby
+heat_template_version: rocky
 
 parameters:
   flavor:
@@ -28,43 +28,44 @@ parameters:
 
 resources:
 
-  mydockerhost:
+  my_dockerhost:
     type: "OS::Nova::Server"
     properties:
       name: dockerhost
       flavor: { get_param: flavor }
       key_name: { get_param: key_name }
       networks:
-        - port: { get_resource: dockerhost_management_port }
-      block_device_mapping:
+        - port: { get_resource: my_dockerhost_management_port }
+      block_device_mapping_v2:
         - device_name: vda
-          volume_id: { get_resource: mydockerhost_boot_volume }
-          delete_on_termination: false
+          volume_id: { get_resource: my_dockerhost_boot_volume }
       config_drive: { get_param: config_drive }
+      user_data: { get_resource: my_config }
+      user_data_format: RAW
 
-  mydockerhost_boot_volume:
+  my_dockerhost_boot_volume:
     type: "OS::Cinder::Volume"
     properties:
       image: { get_param: image }
       size: { get_param: boot_volume_size }
 
-  dockerhost_management_port:
+  my_dockerhost_management_port:
     type: "OS::Neutron::Port"
     properties:
-      network_id: { get_resource: mynet }
+      network_id: { get_resource: my_net }
       security_groups:
-        - { get_resource: mysecurity_group }
+        - { get_resource: my_security_group }
 
-  mynet:
+  my_net:
     type: "OS::Neutron::Net"
     properties:
       name: management-net
 
-  mysub_net:
+  my_subnet:
     type: "OS::Neutron::Subnet"
     properties:
       name: management-sub-net
-      network_id: { get_resource: mynet }
+      network_id: { get_resource: my_net }
       cidr: 192.168.254.0/24
       gateway_ip: 192.168.254.254
       enable_dhcp: true
@@ -75,11 +76,11 @@ resources:
         - start: "192.168.254.200"
           end: "192.168.254.253"
 
-  mysecurity_group:
+  my_security_group:
     type: OS::Neutron::SecurityGroup
     properties:
       description: Neutron security group rules
-      name: mysecurity_group
+      name: my_security_group
       rules:
       - remote_ip_prefix: 0.0.0.0/0
         protocol: tcp
@@ -89,31 +90,54 @@ resources:
         protocol: icmp
         direction: ingress
 
-  router:
+  my_router:
     type: OS::Neutron::Router
 
-  router_gateway:
+  my_router_gateway:
     type: OS::Neutron::RouterGateway
     properties:
-      router_id: { get_resource: router }
+      router_id: { get_resource: my_router }
       network_id: { get_param: public_net }
 
-  router_interface:
+  my_router_interface:
     type: OS::Neutron::RouterInterface
     properties:
-      router_id: { get_resource: router }
-      subnet_id: { get_resource: mysub_net }
+      router_id: { get_resource: my_router }
+      subnet_id: { get_resource: my_subnet }
 
-  myfloating_ip:
+  my_floating_ip:
     type: "OS::Neutron::FloatingIP"
     properties:
       floating_network_id: { get_param: public_net }
-      port_id: { get_resource: dockerhost_management_port }
+      port_id: { get_resource: my_dockerhost_management_port }
     depends_on:
-      - router_interface
-      - router_gateway
+      - my_router_interface
+      - my_router_gateway
+
+  my_config:
+    type: "OS::Heat::CloudConfig"
+    properties:
+      cloud_config:
+        apt:
+          sources:
+            docker.list:
+              source: deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable
+              keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+        package_update: true
+        package_upgrade: true
+        packages:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        groups:
+          - docker
+        system_info:
+          default_user:
+            groups: [docker]
 
 outputs:
   public_ip:
     description: Floating IP address in public network
-    value: { get_attr: [ myfloating_ip, floating_ip_address ] }
+    value: { get_attr: [ my_floating_ip, floating_ip_address ] }
