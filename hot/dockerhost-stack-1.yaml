@@ -1,0 +1,89 @@
+heat_template_version: rocky
+
+parameters:
+  flavor:
+    type: string
+    description: Flavor to use
+    default: b.2c2gb
+  image:
+    type: string
+    description: Image name
+    default: Ubuntu 22.04 Jammy Jellyfish x86_64
+  boot_volume_size:
+    type: number
+    description: Boot volume size
+    default: 16
+  key_name:
+    type: string
+    description: Keypair to inject into server
+    default: ''
+  public_net:
+    type: string
+    description: Public network name
+    default: ext-net
+  config_drive:
+    type: boolean
+    description: Use config_drive for metadata discovery
+    default: true
+
+resources:
+
+  my_dockerhost:
+    type: "OS::Nova::Server"
+    properties:
+      name: dockerhost
+      flavor: { get_param: flavor }
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: my_dockerhost_management_port }
+      block_device_mapping_v2:
+        - device_name: vda
+          volume_id: { get_resource: my_dockerhost_boot_volume }
+      config_drive: { get_param: config_drive }
+
+  my_dockerhost_boot_volume:
+    type: "OS::Cinder::Volume"
+    properties:
+      image: { get_param: image }
+      size: { get_param: boot_volume_size }
+
+  my_dockerhost_management_port:
+    type: "OS::Neutron::Port"
+    properties:
+      network_id: { get_resource: my_net }
+      security_groups:
+        - { get_resource: my_security_group }
+
+  my_net:
+    type: "OS::Neutron::Net"
+    properties:
+      name: management-net
+
+  my_subnet:
+    type: "OS::Neutron::Subnet"
+    properties:
+      name: management-sub-net
+      network_id: { get_resource: my_net }
+      cidr: 192.168.254.0/24
+      gateway_ip: 192.168.254.254
+      enable_dhcp: true
+      dns_nameservers:
+        - "1.1.1.1"
+        - "8.8.8.8"
+      allocation_pools:
+        - start: "192.168.254.200"
+          end: "192.168.254.253"
+
+  my_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Neutron security group rules
+      name: my_security_group
+      rules:
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+      - remote_ip_prefix: 0.0.0.0/0
+        protocol: icmp
+        direction: ingress
