@@ -122,6 +122,16 @@ resources:
       - my_router_interface
       - my_router_gateway
 
+  all_done_handle:
+    type: OS::Heat::WaitConditionHandle
+
+  all_done:
+    type: OS::Heat::WaitCondition
+    properties:
+      handle: {get_resource: all_done_handle}
+      count: 1
+      timeout: 600
+
   my_config:
     type: "OS::Heat::CloudConfig"
     properties:
@@ -148,6 +158,8 @@ resources:
           - docker-compose-plugin
         groups:
           - docker
+        runcmd:
+          - { get_attr: ['all_done_handle', 'curl_cli'] }
         system_info:
           default_user:
             groups: [docker]
