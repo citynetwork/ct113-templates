@@ -38,16 +38,24 @@ resources:
         - port: { get_resource: my_dockerhost_management_port }
       block_device_mapping_v2:
         - device_name: vda
-          volume_id: { get_resource: my_dockerhost_boot_volume }
+          delete_on_termination: true
+          image: { get_param: image }
+          volume_size: { get_param: boot_volume_size }
       config_drive: { get_param: config_drive }
       user_data: { get_resource: my_config }
       user_data_format: RAW
 
-  my_dockerhost_boot_volume:
+  my_docker_volume:
     type: "OS::Cinder::Volume"
     properties:
-      image: { get_param: image }
-      size: { get_param: boot_volume_size }
+      size: 5
+      name: docker-volume
+
+  my_docker_volume_attachment:
+    type: "OS::Cinder::VolumeAttachment"
+    properties:
+      instance_uuid: { get_resource: my_dockerhost }
+      volume_id: { get_resource: my_docker_volume }
 
   my_dockerhost_management_port:
     type: "OS::Neutron::Port"
@@ -118,6 +126,13 @@ resources:
     type: "OS::Heat::CloudConfig"
     properties:
       cloud_config:
+        device_aliases:
+          docker: '/dev/vdb'
+        fs_setup:
+          - filesystem: btrfs
+            device: docker
+        mounts:
+          - [ 'docker', '/var/lib/docker' ]
         package_update: true
         package_upgrade: true
 

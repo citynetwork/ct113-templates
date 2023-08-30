@@ -38,16 +38,24 @@ resources:
         - port: { get_resource: my_dockerhost_management_port }
       block_device_mapping_v2:
         - device_name: vda
-          volume_id: { get_resource: my_dockerhost_boot_volume }
+          delete_on_termination: true
+          image: { get_param: image }
+          volume_size: { get_param: boot_volume_size }
       config_drive: { get_param: config_drive }
       user_data: { get_resource: my_config }
       user_data_format: RAW
 
-  my_dockerhost_boot_volume:
+  my_docker_volume:
     type: "OS::Cinder::Volume"
     properties:
-      image: { get_param: image }
-      size: { get_param: boot_volume_size }
+      size: 5
+      name: docker-volume
+
+  my_docker_volume_attachment:
+    type: "OS::Cinder::VolumeAttachment"
+    properties:
+      instance_uuid: { get_resource: my_dockerhost }
+      volume_id: { get_resource: my_docker_volume }
 
   my_dockerhost_management_port:
     type: "OS::Neutron::Port"
@@ -114,6 +122,16 @@ resources:
       - my_router_interface
       - my_router_gateway
 
+  all_done_handle:
+    type: OS::Heat::WaitConditionHandle
+
+  all_done:
+    type: OS::Heat::WaitCondition
+    properties:
+      handle: {get_resource: all_done_handle}
+      count: 1
+      timeout: 600
+
   my_config:
     type: "OS::Heat::CloudConfig"
     properties:
@@ -123,6 +141,13 @@ resources:
             docker.list:
               source: deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable
               keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+        device_aliases:
+          docker: '/dev/vdb'
+        fs_setup:
+          - filesystem: btrfs
+            device: docker
+        mounts:
+          - [ 'docker', '/var/lib/docker' ]
         package_update: true
         package_upgrade: true
         packages:
@@ -133,6 +158,8 @@ resources:
           - docker-compose-plugin
         groups:
           - docker
+        runcmd:
+          - { get_attr: ['all_done_handle', 'curl_cli'] }
         system_info:
           default_user:
             groups: [docker]
