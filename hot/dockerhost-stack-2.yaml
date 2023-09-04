@@ -16,7 +16,6 @@ parameters:
   key_name:
     type: string
     description: Keypair to inject into server
-    default: ''
   public_net:
     type: string
     description: Public network name

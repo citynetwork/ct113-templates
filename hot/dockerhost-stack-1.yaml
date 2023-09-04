@@ -16,7 +16,6 @@ parameters:
   key_name:
     type: string
     description: Keypair to inject into server
-    default: ''
   config_drive:
     type: boolean
     description: Use config_drive for metadata discovery

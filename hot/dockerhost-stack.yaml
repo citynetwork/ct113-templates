@@ -13,10 +13,13 @@ parameters:
     type: number
     description: Boot volume size
     default: 16
+  data_volume_size:
+    type: number
+    description: Data volume size
+    default: 8
   key_name:
     type: string
     description: Keypair to inject into server
-    default: ''
   public_net:
     type: string
     description: Public network name
@@ -45,17 +48,17 @@ resources:
       user_data: { get_resource: my_config }
       user_data_format: RAW
 
-  my_docker_volume:
+  my_data_volume:
     type: "OS::Cinder::Volume"
     properties:
-      size: 5
-      name: docker-volume
+      size: { get_param: data_volume_size }
+      name: persistent_data
 
-  my_docker_volume_attachment:
+  my_volume_attachment:
     type: "OS::Cinder::VolumeAttachment"
     properties:
       instance_uuid: { get_resource: my_dockerhost }
-      volume_id: { get_resource: my_docker_volume }
+      volume_id: { get_resource: my_data_volume }
 
   my_dockerhost_management_port:
     type: "OS::Neutron::Port"
